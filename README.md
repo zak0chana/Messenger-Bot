@@ -37,11 +37,15 @@ Decorator "on_message" is activated when someone has written something
 Decorator "on_start" the "on_start" decorator is activated at the very beginning of the "run" function
 
 
-tree of invoking commands and cog and "on_start":
-    "on_start"
-    "on_message"
-    Command -> "before_invoke" decorator -> "before_invoke" -> "invoke" -> "after_invoke" -> "after_invoke" decorator
-    Cog -> "before_invoke" -> "invoke" -> "after_invoke"
+tree of invoking commands and cog and "on_start"
+
+-"on_start"
+
+-"on_message"
+
+-Command -> "before_invoke" decorator -> "before_invoke" -> "invoke" -> "after_invoke" -> "after_invoke" decorator
+
+-Cog -> "before_invoke" -> "invoke" -> "after_invoke"
     
 
 
