@@ -12,10 +12,10 @@ class Command:
     def __init__(self,func):
         self._func: Callable[[Context],None] = func
         self.name = self._func.__name__ # function name
-        self.__orginal_name = ... # defined later; see __call__
+        self.__orginal_name:str = ... # defined later; see __call__
 
     @property
-    def orginal_name(self):
+    def orginal_name(self) -> str:
         return self.__orginal_name # command name
 
     @orginal_name.setter
