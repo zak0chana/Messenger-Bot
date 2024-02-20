@@ -4,32 +4,33 @@ Messenger bot wrote in python
 
 How to add command?
 
-from Messenger import Messenger,Button,Context
-token = "YOUR-PAGE-TOKEN"
-mess = Messenger(token)
-
-@mess.command("help")
-def _help(ctx:Context):
-    button = Button(mess.commands)
-    ctx.send("All commands below,buttons=button)
-    return None
+    from YOUR-FILENAME import Messenger,Button,Context
+    token = "YOUR-PAGE-TOKEN"
+    mess = Messenger(token)
+    
+    @mess.command("help")
+    def _help(ctx:Context):
+        button = Button(mess.commands)
+        ctx.send("All commands below,buttons=button)
+        return None
 
 How to add "Cog" command?
 
-from Messenger import Messenger,Cog,Context
-token = "YOUR-PAGE-TOKEN"
-mess = Messenger(token)
+    from YOUR-FILENAME import Messenger,Cog,Context
+    token = "YOUR-PAGE-TOKEN"
+    mess = Messenger(token)
 
-@mess.cog("help")
-class _help(Cog):
-    def before_invoke(self,ctx:Context) -> None:
-        pass
+    @mess.cog("help")
+    class _help(Cog):
     
-    def invoke(self,ctx:Context) -> None:
-        pass
-    
-    def after_invoke(self,ctx:Context) -> None:
-        pass
+        def before_invoke(self,ctx:Context) -> None:
+            pass
+            
+        def invoke(self,ctx:Context) -> None:
+            pass
+            
+        def after_invoke(self,ctx:Context) -> None:
+            pass
 
 Decorator "on_message" is activated when someone has written something
 
