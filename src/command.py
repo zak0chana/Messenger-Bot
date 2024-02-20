@@ -1,4 +1,5 @@
-from typing import Callable
+from typing import Callable,Union
+from typing_extensions import Self
 
 from .context import Context
 
@@ -12,7 +13,7 @@ class Command:
     def __init__(self,func):
         self._func: Callable[[Context],None] = func
         self.name = self._func.__name__ # function name
-        self.__orginal_name:str = ... # defined later; see __call__
+        self.__orginal_name: str = ... # defined later; see __call__
 
     @property
     def orginal_name(self) -> str:
@@ -35,7 +36,7 @@ class Command:
         return _EmptyFunc(ctx)
 
 
-    def __call__(self, name):
+    def __call__(self, name) -> Union[Self,None]:
         if not self.__invoked:
             self.__invoked = True
             self.__orginal_name = name
