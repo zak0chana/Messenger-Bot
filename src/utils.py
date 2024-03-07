@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass()
 class UserData:
     first_name: str
@@ -9,6 +10,7 @@ class UserData:
     id: str
     locale: str
     timezone: int
+    gender:str = None # optional
 
 
 @dataclass()
@@ -19,6 +21,14 @@ class MessageData:
     name: str
     from_: str
     message_token_sender: str
+
+
+@dataclass()
+class Persona:
+    name:str
+    profile_picture_url:str
+    id:str
+
 
 
 
