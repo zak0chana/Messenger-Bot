@@ -4,7 +4,7 @@ Messenger bot wrote in python
 
 How to add command?
 
-    from YOUR-FILENAME import Messenger,Button,Context
+    from MessengerApi import Messenger,Button,Context
     token = "YOUR-PAGE-TOKEN"
     mess = Messenger(token)
     
@@ -16,7 +16,7 @@ How to add command?
 
 How to add "Cog" command?
 
-    from YOUR-FILENAME import Messenger,Cog,Context
+    from MessengerApi import Messenger,Cog,Context
     token = "YOUR-PAGE-TOKEN"
     mess = Messenger(token)
 
@@ -32,9 +32,10 @@ How to add "Cog" command?
         def after_invoke(self,ctx:Context) -> None:
             pass
 
+
 Decorator "on_message" is activated when someone has written something
 
-Decorator "on_start" the "on_start" decorator is activated at the very beginning of the "run" function
+Decorator "on_start" the decorator is activated at the very beginning of the "run" function
 
 
 tree of invoking commands and cog and "on_start"
