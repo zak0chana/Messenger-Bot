@@ -1,52 +1,45 @@
 import inspect
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Callable, List, Union, Type
-import requests
+from typing import Dict, Any, Callable, List, Union, Type, Optional, Literal, Final
 
 from .cog import Cog
-from .context import Context
-from .utils import MessageData, UserData
 from .command import Command as _Command
-
+from .context import Context
+from .http import HttpClient
+from .personas import Persona
+from .utils import MessageData, UserData
 
 logging.basicConfig(level=logging.INFO, format='%(message)s - %(name)s - %(asctime)s')
 _logger = logging.getLogger(__name__)
 
 
 
-class Messenger:
-    def __init__(self, token, prefix='', api_version="v19.0"):
-        self.token = token
-        self.api_version = api_version
-        self.url = f"https://graph.facebook.com"
+class Messenger(HttpClient):
+    def __init__(self, token:str, prefix:str='', api_version:str="v19.0"):
+        self.token:str = token
+        self.api_version:str = api_version
+        self.url: Final[str] = f"https://graph.facebook.com"
 
         self._prefix: str = prefix
 
         self._before_inv: Callable[[Context], None] = None
         self._after_inv: Callable[[Context], None] = None
         self._event: Callable[[Context], None] = None
-        self._on_start: Callable[[None], Dict[str, Any]] = None
+        self._on_start: Callable[[None], Optional[Dict[str, Any]]] = None
         self._function: Dict[str, Callable] = dict()
         self._cogs: Dict[str, Cog] = dict()
 
-        self._page_name: str = ...  # defined later / see function `page_name`
-        self._page_id: str = ...  # defined later / see function `page_id`
+        self._page_name: str = ...  # defined later; see function `page_name`
+        self._page_id: str = ...  # defined later; see function `page_id`
 
         if self._prefix:
             self.__check_prefix()
 
-    def sendRequest(self, method: str, path: str = '', **kwargs) -> requests.Response:
-        url = self.url + path
-
-        try:
-            req = requests.request(method, url, **kwargs)
-            req.raise_for_status()
-            return req
-        except KeyboardInterrupt:
-            raise SystemExit
-        except Exception as err:
-            raise err
+    @property
+    def persona(self):
+        prepared = {"token": self.token, 'page_id': self.page_id, 'api_version': self.api_version}
+        return Persona(**prepared)
 
     @property
     def page_name(self) -> str:
@@ -78,7 +71,6 @@ class Messenger:
         req = self.sendRequest("GET", f'/{self.page_id}/subscribed_apps', params=params)
         return req.json()
 
-
     def get_label(self, text: str) -> str:
         if not isinstance(text, str):
             raise TypeError("Argument `text` must be a str")
@@ -87,7 +79,7 @@ class Messenger:
         req = self.sendRequest("POST", f"/{self.api_version}/me/custom_labels", json=dataJSON, params=params)
         return req.json()['id']
 
-    def set_label(self, sender:Union[str, int] ,id: Union[str, int]) -> None:
+    def set_label(self, sender: Union[str, int], id: Union[str, int]) -> None:
         if not isinstance(sender, (str, int)):
             raise TypeError("Argument `sender` must be Union[str,int]")
         if not isinstance(id, (str, int)):
@@ -105,6 +97,18 @@ class Messenger:
         params = {"access_token": self.token, 'user': self.sender}
         req = self.sendRequest("DELETE", f"/{self.api_version}/{id}/label", params=params)
 
+    def send_action(self, sender: Union[str, int], action: Literal['mark_seen', 'typing_on', 'typing_off']):
+        if not isinstance(sender, (str, int)):
+            raise TypeError("Argument `sender` must be Union[str,int]")
+        if not action in ['mark_seen', 'typing_on', 'typing_off']:
+            raise TypeError("Argument `action` must be in ['mark_seen', 'typing_on', 'typing_off']")
+
+        dataJSON = {"recipient": {'id': str(sender)}, "sender_action": action}
+        params = {"access_token": self.token}
+        header = {"content-type": "application/json; charset=utf-8"}
+
+        req = self.sendRequest('POST', f'/{self.api_version}/{self.page_id}/messages', json=dataJSON, params=params)
+        return req.json()
 
     def _get_conversations_id(self) -> List[str]:
         params = {"access_token": self.token}
@@ -115,13 +119,13 @@ class Messenger:
 
         return conversationsID
 
-    def _get_messages_from_convesation(self, id: Union[str,int]) -> dict:
+    def _get_messages_from_convesation(self, id: Union[str, int]) -> dict:
         params = {"access_token": self.token, 'fields': 'messages'}
         req = self.sendRequest("GET", f'/{self.api_version}/{id}', params=params)
         data = req.json()
         return data
 
-    def _get_message_id(self, id: Union[str,int]) -> dict:
+    def _get_message_id(self, id: Union[str, int]) -> dict:
         params = {"access_token": self.token, 'fields': 'id,created_time,from,to,message'}
         req = self.sendRequest("GET", f'/{self.api_version}/{id}', params=params)
         return req.json()
@@ -150,9 +154,10 @@ class Messenger:
 
         return req.json()
 
-    def getUsername(self, PSID: Union[str,int] = '24805863585724940') -> UserData:
+    def getUsername(self, PSID: Union[str, int] = '24805863585724940') -> UserData:
         """ https://developers.facebook.com/docs/messenger-platform/identity/user-profile """
-        params = {"access_token": self.token,'fields': 'first_name,last_name,name,profile_pic,id,locale,timezone'}
+        params = {"access_token": self.token,
+                  'fields': 'first_name,last_name,name,profile_pic,id,locale,timezone,gender'}
 
         req = self.sendRequest("GET", f"/{PSID}", params=params)
         data = req.json()
@@ -184,21 +189,21 @@ class Messenger:
         if greeting and isinstance(greeting, list):
             dataJSON = {"greeting": greeting}
             req = self.sendRequest('POST', url, json=dataJSON)
-            print(req.json())
 
         if commands and isinstance(commands, list):
             dataJSON = {"commands": [{"locale": "default", "commands": commands}]}
             req = self.sendRequest("POST", url, json=dataJSON)
-            print(req.json())
 
     def get_messenger_profile(self) -> Dict[str, Any]:
         params = {"access_token": self.token, 'fields': 'whitelisted_domains,greeting,commands'}
         req = self.sendRequest("GET", f'/{self.api_version}/me/messenger_profile', params=params)
         return req.json()
 
+
+
     def run(self):
         if self.commands == set() and self._event is None and self.cogs == set():
-            raise RuntimeError("no command/cog are added")
+            raise RuntimeError("no command/cog/on_message are added")
 
         if self._on_start is not None:
             _logger.info("Setup `on_start`")
@@ -227,14 +232,15 @@ class Messenger:
         while True:
             for data in self.__getmessages__():
 
-                command_name: str = data.message_context.split(' ')[0].removeprefix(self._prefix)
+                command_name: str = data.message_context.split('\n')[0].split(' ')[0].removeprefix(self._prefix)
 
-                preparedCtx = {"token": self.token, "sender_id": data.id_sender,"api":self.api_version,
+                preparedCtx = {"token": self.token, "sender_id": data.id_sender, "api": self.api_version,
                                "command": command_name, "context": data.message_context, "username": data.from_,
-                               "created_time": data.created_time, "message_token_sender": data.message_token_sender}
+                               "created_time": data.created_time, "message_token_sender": data.message_token_sender,
+                               'page_id': self.page_id}
                 ctx = Context(**preparedCtx)
 
-                check_data:bool = (datetime.strptime(current_date, "%Y-%m-%dT%H:%M:%S%z") < datetime.strptime(
+                check_data: bool = (datetime.strptime(current_date, "%Y-%m-%dT%H:%M:%S%z") < datetime.strptime(
                     data.created_time, "%Y-%m-%dT%H:%M:%S%z"))
 
                 if self._prefix != '':
@@ -242,12 +248,11 @@ class Messenger:
                 else:
                     check_prefix = True
 
-                if (self._event is not None and data.from_ != self.page_name and check_data): # event
+                if self._event is not None and data.from_ != self.page_name and check_data:  # event
                     current_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S%z')
                     self._event(ctx)
 
-
-                if (command_name in self.commands and data.from_ != self.page_name and check_data and check_prefix): # function
+                if command_name in self.commands and data.from_ != self.page_name and check_data and check_prefix:  # commands
 
                     current_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S%z')
 
@@ -263,8 +268,8 @@ class Messenger:
                     if self._after_inv:
                         self._after_inv(ctx)
 
+                if command_name in self.cogs and data.from_ != self.page_name and check_data and check_prefix:  # cog
 
-                if (command_name in self.cogs and data.from_ != self.page_name and check_data and check_prefix): # cog
                     current_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S%z')
 
                     cog_invoke: Type[Cog] = self._cogs[command_name]
@@ -275,15 +280,12 @@ class Messenger:
                     cog.invoke(ctx)
                     cog.after_invoke(ctx)
 
-
     def __check_prefix(self) -> None:
-        if type(self._prefix) is not str:
+        if not isinstance(self._prefix, str):
             raise TypeError("`prefix` must be a str")
 
         if ' ' in self._prefix:
-            raise SyntaxError("`space` is not allowed in prefix") #  a moze nie ?
-
-
+            raise SyntaxError("`space` is not allowed in prefix")  # a moze nie ?
 
     def on_start(self, cls=None, /) -> None:
         """
@@ -310,7 +312,6 @@ class Messenger:
     def on_message(self, cls=None, /) -> None:
         """
         dekorator wtedy kiedy cokolwiek zostalo napisane
-
         """
 
         def wrapper(func):
@@ -367,37 +368,17 @@ class Messenger:
 
         return wrapper(cls)
 
-
     def add_cog(self, name: str, cog: Cog) -> None:
-        if ' ' in name:
-            raise SyntaxError("`space` is not allowed in cog name")
+        self.cog(name)(cog)
 
-        if not inspect.isclass(cog):
-            raise TypeError("`cog` must be a class")
-
-        if not issubclass(cog, Cog):
-            raise TypeError("`cog` must be subclass of `Cog`")
-
-        if name in self.cogs:
-            raise TypeError("this name cog is reserved")
-
-        self._cogs[name] = cog
-
-
-    def add_command(self,command:_Command):
-        if not isinstance(command,_Command):
-            raise TypeError("Argument `command` must be a class of `Command`")
-
-        name = command.orginal_name
-
-        if name in self.commands:
-            raise TypeError("this command name is reserved")
-
-        self._function[name] = command
-
+    def add_command(self, command_name: str, func):
+        self.command(command_name)(func)
 
     def command(self, name) -> Type[_Command]:
         def wrapper(func):
+
+            if not isinstance(name, str):
+                raise TypeError("Argument `name` must be str")
 
             if ' ' in name:
                 raise SyntaxError("`space` is not allowed in command name")
@@ -408,20 +389,32 @@ class Messenger:
             if not inspect.isfunction(func):
                 raise TypeError("This decoration function can be use only for function")
 
+
             if name in self.commands:
-                raise TypeError("this name is reserved")
+                raise TypeError("this command name is reserved")
 
+            command = _Command(func, name)
+            self._function[name] = command
 
-            command = _Command(func)(name)
-            self.add_command(command)
             return command
 
         return wrapper
 
-
     def cog(self, name: str) -> None:
         def wrapper(func):
-            self.add_cog(name, func)
+            if ' ' in name:
+                raise SyntaxError("`space` is not allowed in cog name")
+
+            if not inspect.isclass(func):
+                raise TypeError("`cog` must be a class")
+
+            if not issubclass(func, Cog):
+                raise TypeError("`cog` must be subclass of `Cog`")
+
+            if name in self.cogs:
+                raise TypeError("this name cog is reserved")
+
+            self._cogs[name] = func
 
         return wrapper
 
@@ -446,4 +439,3 @@ class Messenger:
     def __repr__(self):
         page_name = self.page_name
         return f"Messenger({page_name=})"
-
