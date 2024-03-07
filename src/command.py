@@ -1,4 +1,4 @@
-from typing import Callable,Union,Type
+from typing import Callable,Union
 import inspect
 
 from .context import Context
